@@ -1,7 +1,6 @@
 package com.facebook.camapp;
 
 import androidx.annotation.NonNull;
-import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 
 import android.Manifest;
@@ -16,8 +15,14 @@ import android.util.Log;
 import android.util.Size;
 import android.view.Surface;
 import android.view.TextureView;
+import android.widget.TextView;
+
+import com.facebook.camapp.utils.CameraSource;
+import com.facebook.camapp.utils.FpsMeasure;
+import com.facebook.camapp.utils.OutputMultiplier;
 
 import java.util.ArrayList;
+import java.util.Formatter;
 
 public class MainActivity extends Activity implements TextureView.SurfaceTextureListener {
     final static String TAG = "camapp";
@@ -25,13 +30,14 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
     TextureView mTextureView;
     SurfaceTexture mSurfaceTexture;
     Surface mSurface;
+    TextView mDataText;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         mTextureView = findViewById(R.id.cameraView);
-
+        mDataText = findViewById(R.id.dataText);
         String[] permissions = retrieveNotGrantedPermissions(this);
 
         if (permissions != null && permissions.length > 0) {
@@ -111,11 +117,12 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
         configureTextureViewTransform(previewSize, width, height);
         final int rHeight = height;
         final int rWidth = width;
+        OutputMultiplier mOutputMult;
 
         mSurfaceTexture = surface;
-        mSurface = new Surface(mSurfaceTexture);
         final Context context = this;
-        runOnUiThread(new Runnable() {
+        mOutputMult = new OutputMultiplier();
+        Thread t = new Thread(new Runnable() {
             @Override
             public void run() {
                 while (ActivityCompat.checkSelfPermission(context, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
@@ -128,11 +135,35 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
                 }
 
                 CameraSource camera = CameraSource.getCamera(context);
-                Log.d(TAG, "register surface w, h = " + rWidth + ","  +rHeight);
+                mOutputMult.addSurfaceTexture(mSurfaceTexture);
+                mOutputMult.confirmSize(rWidth, rHeight);
+                while(mOutputMult.getInputSurface() == null) {
+                    try {
+                        Thread.sleep(50);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+                mSurface = mOutputMult.getInputSurface();
                 camera.registerSurface(mSurface, rWidth, rHeight);
-                Log.d(TAG, "start");
                 camera.start();
+                FpsMeasure fpsMeasure= new FpsMeasure(30.0f, "Camera");
+                fpsMeasure.start();
+                while(true) {
+                    long tsNs = mOutputMult.awaitNewImage();
+                    fpsMeasure.addPtsNsec(tsNs);
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            String text = 
+                                    (new Formatter()).format("Camera rate: %.1f fps (1 sec average: %.1f fps)",
+                                        fpsMeasure.getFps(), fpsMeasure.getAverageFps()).toString();
+                            mDataText.setText(text);
+                        }
+                    });
+                }
             }});
+        t.start();
 
     }
 
