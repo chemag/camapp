@@ -21,16 +21,17 @@ public class FpsMeasure extends Thread{
     Vector<Float> mHistory = new Vector<>(mHistoryLength);
     float mCurrentHistorySum = 0;
     Object mLock = new Object();
-    
+
     public FpsMeasure(float targetFps, String id) {
         // Target fps is used to set measurement length
         mTargetFps = targetFps;
         mId = id;
     }
-    
+
     @Override
     public void run() {
-        mLatestPts = new long[(int)(mTargetFps + 0.5)];
+        // The frame rate is calculated with a one period window
+        mLatestPts = new long[(int)(mTargetFps + 1)];
         mHistoryLength = mLatestPts.length;
         double lastFps = 0;
         int stableCount = 0;
@@ -42,11 +43,9 @@ public class FpsMeasure extends Thread{
                     e.printStackTrace();
                 }
             }
-
-
             int index = mPtsIndex;
             // points at the oldest value
-            long s1 = mLatestPts[(index + 1)%mLatestPts.length]; 
+            long s1 = mLatestPts[(index + 1)%mLatestPts.length];
             // current value
             long s2 =  mLatestPts[index];
             double diff = (double)(s2 - s1)/1000000.0;
@@ -88,14 +87,14 @@ public class FpsMeasure extends Thread{
             mLock.notifyAll();
         }
     }
-    
+
     public boolean isStable() {
         return mStable;
     }
     public double getFps() {
         return mFps;
     }
-    
+
     public float getAverageFps() {
         return mCurrentHistorySum/mHistory.size();
     }
