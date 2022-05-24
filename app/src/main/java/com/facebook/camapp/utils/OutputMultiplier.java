@@ -66,7 +66,7 @@ public class OutputMultiplier {
         }
 
     }
-    
+
     public void setName(String name) {
         mName = name;
         if (mRenderer != null) {
@@ -82,7 +82,7 @@ public class OutputMultiplier {
             mRenderer = new Renderer(surfaceTexture);
             return mRenderer.setup();
         }
-        
+
     }
 
     public void removeFrameSwapControl(FrameswapControl control) {
@@ -99,6 +99,7 @@ public class OutputMultiplier {
             Log.e(TAG, "No renderer exists");
         }
     }
+
     public long awaitNewImage() {
         return mRenderer.awaitNewImage();
     }
@@ -113,7 +114,7 @@ public class OutputMultiplier {
             mRenderer.quit();
         }
     }
-    
+
     public void newFrameAvailableInBuffer(MediaCodec codec, int bufferId, MediaCodec.BufferInfo info) {
         if (mRenderer != null) { // it will be null if no surface is connected
             mRenderer.newFrameAvailableInBuffer(codec, bufferId, info);
@@ -260,7 +261,7 @@ public class OutputMultiplier {
         public void setString(String name) {
             this.setName(name);
         }
-        
+
         public void vSync(long time) {
             synchronized (mVSynchLock) {
                 if (mVsync0 == -1) {
@@ -270,7 +271,7 @@ public class OutputMultiplier {
                 mVSynchLock.notifyAll();
             }
         }
-        
+
         public void releaseEgl() {
             mEglCore.release();
         }
@@ -319,7 +320,7 @@ public class OutputMultiplier {
             }
             return mLatestTimestamp;
         }
-        
+
         public void drawFrameFromBuffer(){
             if (mEglCore == null) {
                 Log.d(TAG, "Skipping drawFrame after shutdown");
@@ -382,7 +383,6 @@ public class OutputMultiplier {
                 Log.d(TAG, "Skipping drawFrame after shutdown");
                 return;
             }
-
             mMasterSurface.makeCurrent();
             mInputTexture.updateTexImage();
             mInputTexture.getTransformMatrix(mTmpMatrix);
@@ -393,6 +393,7 @@ public class OutputMultiplier {
                 for (FrameswapControl surface : mOutputSurfaces) {
                     try {
                         if (surface.keepFrame()) {
+
                             surface.makeCurrent();
                             int width = surface.getWidth();
                             int height = surface.getHeight();
@@ -421,7 +422,7 @@ public class OutputMultiplier {
                 mInputFrameLock.notifyAll();
             }
         }
-        
+
         public void newFrameAvailableInBuffer(MediaCodec codec, int id, MediaCodec.BufferInfo info) {
             synchronized (mInputFrameLock) {
                 mFrameBuffers.offer(new FrameBuffer(codec, id, info));
@@ -441,7 +442,7 @@ public class OutputMultiplier {
                 mInputFrameLock.notifyAll();
             }
         }
-    
+
         public void confirmSize(int width, int height) {
             Log.d(TAG, "Confirm size with " + width +  ", " + height);
             synchronized (mSizeLock) {

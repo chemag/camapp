@@ -3,15 +3,20 @@ package com.facebook.camapp.utils;
 import android.Manifest;
 import android.content.Context;
 import android.content.pm.PackageManager;
-import android.graphics.Camera;
 import android.graphics.SurfaceTexture;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCaptureSession;
+import android.hardware.camera2.CameraCaptureSession.CaptureCallback;
+import android.hardware.camera2.CameraCaptureSession.StateCallback;
 import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
 import android.hardware.camera2.CameraMetadata;
+import android.hardware.camera2.CaptureFailure;
 import android.hardware.camera2.CaptureRequest;
+import android.hardware.camera2.CaptureResult;
+import android.hardware.camera2.TotalCaptureResult;
+import android.hardware.camera2.params.MandatoryStreamCombination;
 import android.hardware.camera2.params.OutputConfiguration;
 import android.hardware.camera2.params.RecommendedStreamConfigurationMap;
 import android.hardware.camera2.params.SessionConfiguration;
@@ -43,15 +48,24 @@ public class CameraSource {
     Handler mHandler;
     Vector<OutputConfiguration> mOutputConfigs;
     CameraCaptureSession mSession;
-    private CaptureRequest.Builder mPreviewRequestBuilder;
+    int mSensitivityTarget = 200;
+    int mFrameDurationTargetUsec = 30000;
+    int mFrameExposureTimeTargetUsec = 15000;
+    float mFramerateTarget = 30;
+    boolean mHasAwbLock = true;
+    boolean mAWBconverged = false;
+    boolean mCameraReady = false;
+    boolean mManualSettings = false;
+    final static int WAIT_TIME_SHORT_MS = 3000;  // 3 sec
+
 
     private static CameraSource me = null;
     private static int mClients = 0;
-    final static Object lock = new Object();
+    static Object lock = new Object();
     Vector<SurfaceData> mSurfaces = new Vector<>();
 
     int mHwLevel = -1;
-    
+
     public static CameraSource getCamera(Context theContext) {
         synchronized (lock) {
             if (me == null) {
@@ -108,7 +122,23 @@ public class CameraSource {
                 while (iter.hasNext()) {
                     CameraCharacteristics.Key<?> key = iter.next();
 
-                    Log.d(TAG, "Key: " + key.getName());
+                    Object obj = chars.get(key);
+                    if (obj instanceof Range[] ) {
+                        Log.d(TAG, "Key: " + key.getName());
+                        for (Range range: (Range[])obj) {
+                            Log.d(TAG, range.getLower() + "->" + range.getUpper());
+                        }
+                    } else if (obj instanceof MandatoryStreamCombination[]) {
+                        Log.d(TAG, key.getName());
+                        for (MandatoryStreamCombination comb: (MandatoryStreamCombination[])obj) {
+                            Log.d(TAG, "descr: " + comb.getDescription());
+                        }
+                    }
+                    else {
+                        Log.d(TAG, key.getName() + " - "  + chars.get(key));
+
+                    }
+
                 }
             }
 
@@ -139,27 +169,66 @@ public class CameraSource {
             int [] inputFormats = streamConfigurationMap.getInputFormats();
             for (int format:inputFormats) {
                 Log.d(TAG, "Input format: " + format);
+                Size[] inputsizes = streamConfigurationMap.getInputSizes(format);
+                for (Size size: inputsizes) {
+                    Log.d(TAG, format + " - " + size);
+                }
             }
+
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 RecommendedStreamConfigurationMap recomended = characs.getRecommendedStreamConfigurationMap(RecommendedStreamConfigurationMap.USECASE_PREVIEW);
             }
 
             Range<Integer>[] fpsRanges = characs.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES);
-            for (Range range: fpsRanges) {
-                Log.d(TAG, "fps range: " + range.getLower() + " -> " + range.getUpper());
+            Log.d(TAG, "_____\n");
+            if (fpsRanges != null) {
+                Log.d(TAG, "fps ranges: " + fpsRanges.length);
+                for (Range range : fpsRanges) {
+                    Log.d(TAG, range.getLower() + " -> " + range.getUpper());
+                }
+            } else {
+                Log.d(TAG, "no fps ranges");
             }
-
-            Range<Integer>  sensorRange = characs.get(CameraCharacteristics.SENSOR_INFO_SENSITIVITY_RANGE);
+            Log.d(TAG, "_____\n");
+            Range<Integer> sensorRange = characs.get(CameraCharacteristics.SENSOR_INFO_SENSITIVITY_RANGE);
             if (sensorRange != null)
                 Log.d(TAG, "Sensor range: " + sensorRange.getLower() + " -> " + sensorRange.getUpper());
+            else
+                Log.d(TAG, "No sensor range");
 
+            Log.d(TAG, "_____\n");
             Range<Long> exposureRange = characs.get(CameraCharacteristics.SENSOR_INFO_EXPOSURE_TIME_RANGE);
             if (exposureRange != null)
                 Log.d(TAG, "Exposure range: " + exposureRange.getLower() + " -> " + exposureRange.getUpper());
-
+            else
+                Log.d(TAG, "No exposure range");
+            Log.d(TAG, "_____\n");
             Long maxDuration = characs.get(CameraCharacteristics.SENSOR_INFO_MAX_FRAME_DURATION);
             Log.d(TAG, "Max frame duration: " + maxDuration);
+
+            Log.d(TAG, "_____\n");
+            int[] facedetectionModes= characs.get(CameraCharacteristics.STATISTICS_INFO_AVAILABLE_FACE_DETECT_MODES);
+            if (facedetectionModes != null) {
+                Log.d(TAG, "facedetectionModes: " + facedetectionModes.length);
+                for (int mode : facedetectionModes) {
+                    switch (mode) {
+                        case CameraCharacteristics.STATISTICS_FACE_DETECT_MODE_OFF:
+                            Log.d(TAG, "Mode off available");
+                            break;
+                        case CameraCharacteristics.STATISTICS_FACE_DETECT_MODE_SIMPLE:
+                            Log.d(TAG, "Mode simple available");
+                            break;
+                        case CameraCharacteristics.STATISTICS_FACE_DETECT_MODE_FULL:
+                            Log.d(TAG, "Mode full available");
+                            break;
+                    }
+                }
+
+            }
+            else
+                Log.d(TAG, "No face detection modes");
+
             mCameraManager.openCamera(cams[0],
                     new StateHolder(),
                     mHandler);
@@ -169,14 +238,14 @@ public class CameraSource {
 
             mHwLevel = characs.get(CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL);
             Log.d(TAG, "Hw level: " + hwLevelToText(mHwLevel));
+            Log.d(TAG, "_____\n");
         } catch (CameraAccessException cameraAccessException) {
             cameraAccessException.printStackTrace();
         }
         return true;
     }
 
-
-    public void registerSurface(Surface output, int width,  int height) {
+    public void registerSurface(Surface output, int width, int height) {
         mSurfaces.add(new SurfaceData(output, width, height));
     }
 
@@ -204,6 +273,19 @@ public class CameraSource {
             e.printStackTrace();
         }
         return true;
+    }
+
+    private void updateParameters() {
+        try {
+            mSession.abortCaptures();
+            SessionConfiguration config = new SessionConfiguration(SessionConfiguration.SESSION_REGULAR,
+                    mOutputConfigs,
+                    new CamExec(),
+                    new CamState());
+            mCameraDevice.createCaptureSession(config);
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
+        }
     }
     class StateHolder extends CameraDevice.StateCallback {
 
@@ -236,9 +318,35 @@ public class CameraSource {
         }
     }
 
-    
-    
-    class CamState extends CameraCaptureSession.StateCallback {
+
+    public Range<Integer> getRange(float target, Range<Integer>[] ranges){
+        Range<Integer> range = null;
+        if (ranges != null) {
+            for (Range<Integer> r:ranges){
+                if (target == r.getLower() && target == r.getUpper()) {
+                    return r;
+                } else if (target >= r.getLower() && target <= r.getUpper()) {
+                    range = r;
+                }
+            }
+        }
+        return range;
+    }
+
+    public CameraCharacteristics getCameraCharacteristics() {
+        if (mCameraManager != null && mCameraDevice != null) {
+            try {
+                return mCameraManager.getCameraCharacteristics(mCameraDevice.getId());
+            } catch (CameraAccessException e) {
+                e.printStackTrace();
+            }
+        }
+
+        return null;
+    }
+
+    Object mRequestLock = new Object();
+    class CamState extends StateCallback {
         public CamState() {
             super();
         }
@@ -247,26 +355,87 @@ public class CameraSource {
         public void onConfigured(@NonNull CameraCaptureSession session) {
             Log.d(TAG, "CameraCapture configured: " + session.toString());
 
-            try {
-                Log.d(TAG, "Create request");
-                CameraCharacteristics characs =mCameraManager.getCameraCharacteristics(mCameraDevice.getId());
-                Range<Integer>[] fpsRanges = characs.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES);
-                Range<Integer>  sensorRange = characs.get(CameraCharacteristics.SENSOR_INFO_SENSITIVITY_RANGE);
+            Thread t = new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    boolean aeTriggered = false;
+                    boolean awbLockTriggered = false;
+                    try {
+                        CaptureRequest.Builder  request
+                                = mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_RECORD);
+                        CapResult capRes = new CapResult();
+                        CameraCharacteristics characs = mCameraManager.getCameraCharacteristics(mCameraDevice.getId());
+                        Range<Integer>[] fpsRanges = characs.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES);
+                        Range<Integer> sensorRange = characs.get(CameraCharacteristics.SENSOR_INFO_SENSITIVITY_RANGE);
 
-                mPreviewRequestBuilder
-                        = mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_RECORD);
-                for (SurfaceData data: mSurfaces) {
-                    Log.d(TAG, "Add target surface: " + data.mSurface + ", " + data.mHeight);
-                    mPreviewRequestBuilder.addTarget(data.mSurface);
+                        mHasAwbLock = characs.get(CameraCharacteristics.CONTROL_AWB_LOCK_AVAILABLE);
+
+                        while (!mCameraReady && mHasAwbLock) {
+
+                            for (SurfaceData data : mSurfaces) {
+                                request.addTarget(data.mSurface);
+                            }
+                            if (mAWBconverged && !awbLockTriggered) {
+                                Log.d(TAG, "Lock awb");
+                                awbLockTriggered = true;
+                                request.set(CaptureRequest.CONTROL_AWB_LOCK, true);
+                            } else if(!aeTriggered){
+                                aeTriggered = true;
+                                request.set(CaptureRequest.CONTROL_AE_PRECAPTURE_TRIGGER, CaptureRequest.CONTROL_AE_PRECAPTURE_TRIGGER_START);
+                            }
+                            int capture = session.capture(request.build(), capRes, mHandler);
+                            synchronized (mRequestLock) {
+                                try {
+                                    mRequestLock.wait(WAIT_TIME_SHORT_MS);
+                                } catch (InterruptedException e) {
+                                    e.printStackTrace();
+                                }
+                            }
+                        }
+                        for (SurfaceData data : mSurfaces) {
+                            Log.d(TAG, "Add target surface: " + data.mSurface + ", " + data.mHeight);
+                            request.addTarget(data.mSurface);
+                        }
+
+                        if (mManualSettings) {
+                            boolean turnOffAE = false;
+                            if (mSensitivityTarget > 0) {
+                                Log.d(TAG, "Set sensitivity: " + mSensitivityTarget);
+                                request.set(CaptureRequest.SENSOR_SENSITIVITY, mSensitivityTarget);
+                                turnOffAE = true;
+                            }
+                            if (mFrameExposureTimeTargetUsec > 0) {
+                                Log.d(TAG, "Set exposure time to: " + (mFrameExposureTimeTargetUsec * 1000) +
+                                        "ns (" + (mFrameExposureTimeTargetUsec / 1000.0) + " ms)");
+                                request.set(CaptureRequest.SENSOR_EXPOSURE_TIME, new Long(mFrameExposureTimeTargetUsec * 1000));
+                                turnOffAE = true;
+                            }
+                            if (mFrameDurationTargetUsec > 0) {
+                                Log.d(TAG, "Set frame duration time to: " + (mFrameDurationTargetUsec * 1000) +
+                                        "ns (" + (mFrameDurationTargetUsec / 1000.0) + " ms)");
+                                request.set(CaptureRequest.SENSOR_FRAME_DURATION, new Long(mFrameDurationTargetUsec * 1000));
+                                turnOffAE = true;
+                            }
+                            if (mFramerateTarget > 0) {
+                                Range fps = getRange(mFramerateTarget, fpsRanges);
+                                Log.d(TAG, "Set framerate: " + fps);
+                                request.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, fps);
+                            }
+                            if (turnOffAE) {
+                                request.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_OFF);
+                            }
+                            request.set(CaptureRequest.CONTROL_CAPTURE_INTENT, CameraMetadata.CONTROL_CAPTURE_INTENT_VIDEO_RECORD);
+                            Log.d(TAG, "Capture continously!");
+                            int capture = session.setRepeatingRequest(request.build(), capRes, mHandler);
+                        }
+                    } catch (CameraAccessException e) {
+                        e.printStackTrace();
+                    }
+                    mSession = session;
                 }
+            });
+            t.start();
 
-                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_CAPTURE_INTENT, CameraMetadata.CONTROL_CAPTURE_INTENT_VIDEO_RECORD);
-                Log.d(TAG, "Capture!");
-                int capture = session.setRepeatingRequest(mPreviewRequestBuilder.build(), null, mHandler);
-                mSession = session;
-            } catch (CameraAccessException e) {
-                e.printStackTrace();
-            }
         }
 
         @Override
@@ -278,8 +447,7 @@ public class CameraSource {
         @Override
         public void onReady(@NonNull CameraCaptureSession session) {
             super.onReady(session);
-            //session.getInputSurface().setFrameRate(30, Surface.FRAME_RATE_COMPATIBILITY_DEFAULT);
-//            session.switchToOffline(Arrays.asList(mSurface), new CamExec(), new Offline());
+            Log.d(TAG, "onReady!!!");
         }
 
 
@@ -308,6 +476,46 @@ public class CameraSource {
             Log.d(TAG, "onSurfacePrepared");
         }
 
+    }
+
+    class CapResult extends CaptureCallback {
+        @Override
+        public void onCaptureStarted(@NonNull CameraCaptureSession session, @NonNull CaptureRequest request, long timestamp, long frameNumber) {
+            super.onCaptureStarted(session, request, timestamp, frameNumber);
+        }
+
+        @Override
+        public void onCaptureProgressed(@NonNull CameraCaptureSession session, @NonNull CaptureRequest request, @NonNull CaptureResult partialResult) {
+            super.onCaptureProgressed(session, request, partialResult);
+            Log.d(TAG, "onCaptureProgressed");
+        }
+
+        @Override
+        public void onCaptureCompleted(@NonNull CameraCaptureSession session, @NonNull CaptureRequest request, @NonNull TotalCaptureResult result) {
+            super.onCaptureCompleted(session, request, result);
+            if (!mCameraReady && mHasAwbLock) {
+                switch (result.get(CaptureResult.CONTROL_AWB_STATE)) {
+                    case CaptureResult.CONTROL_AWB_STATE_CONVERGED:
+                        Log.d(TAG, "awb converged.");
+                        mAWBconverged = true;
+                        break;
+                    case CaptureResult.CONTROL_AWB_STATE_LOCKED:
+                        Log.d(TAG, "awb locked.");
+                        mCameraReady = true;
+                        break;
+
+                }
+                synchronized (mRequestLock) {
+                    mRequestLock.notifyAll();
+                }
+            }
+        }
+
+        @Override
+        public void onCaptureFailed(@NonNull CameraCaptureSession session, @NonNull CaptureRequest request, @NonNull CaptureFailure failure) {
+            super.onCaptureFailed(session, request, failure);
+            Log.d(TAG, "onCaptureFailed");
+        }
     }
 
     String hwLevelToText( int deviceLevel) {
@@ -369,4 +577,25 @@ public class CameraSource {
     public static int getClientCount() {
         return mClients;
     }
+
+    public void setFps(float fps) {
+        mManualSettings= true;
+        mFramerateTarget = fps;
+    }
+
+    public void setFrameDurationUsec(int usec) {
+        mManualSettings= true;
+        mFrameDurationTargetUsec = usec;
+    }
+
+    public void setFrameExposureTimeTargetUsec(int usec) {
+        mManualSettings= true;
+        mFrameExposureTimeTargetUsec = usec;
+    }
+
+    public void setSensitivity(int iso) {
+        mManualSettings= true;
+        mSensitivityTarget = iso;
+    }
+
 }
