@@ -424,10 +424,11 @@ public class CameraSource {
                             if (turnOffAE) {
                                 request.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_OFF);
                             }
-                            request.set(CaptureRequest.CONTROL_CAPTURE_INTENT, CameraMetadata.CONTROL_CAPTURE_INTENT_VIDEO_RECORD);
-                            Log.d(TAG, "Capture continously!");
-                            int capture = session.setRepeatingRequest(request.build(), capRes, mHandler);
                         }
+                        request.set(CaptureRequest.CONTROL_CAPTURE_INTENT, CameraMetadata.CONTROL_CAPTURE_INTENT_VIDEO_RECORD);
+                        Log.d(TAG, "Capture continously!");
+                        int capture = session.setRepeatingRequest(request.build(), capRes, mHandler);
+
                     } catch (CameraAccessException e) {
                         e.printStackTrace();
                     }
