@@ -28,7 +28,7 @@ import java.util.ArrayList;
 import java.util.Formatter;
 
 public class MainActivity extends Activity implements TextureView.SurfaceTextureListener, SeekBar.OnSeekBarChangeListener {
-    final static String TAG = "camapp";
+    final static String TAG = "camapp.main";
 
     TextureView mTextureView;
     SurfaceTexture mSurfaceTexture;
