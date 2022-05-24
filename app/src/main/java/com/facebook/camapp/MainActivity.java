@@ -34,6 +34,8 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
     SurfaceTexture mSurfaceTexture;
     Surface mSurface;
     TextView mDataText;
+    OutputMultiplier mOutputMult;
+    CameraSource mCamera;
     float mFps = 30.0f;
     int mSensitivityTarget = -1;
     int mFrameDurationTargetUsec = -1;
@@ -54,6 +56,7 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
         Intent intent = getIntent();
         Bundle bundle = intent.getExtras();
         if (bundle != null) {
+            Log.d(TAG, "Have extra settings");
             if (bundle.containsKey("fps")) {
                 mFps = Float.parseFloat(bundle.getString("fps"));
             }
@@ -137,7 +140,6 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
         configureTextureViewTransform(previewSize, width, height);
         final int rHeight = height;
         final int rWidth = width;
-        OutputMultiplier mOutputMult;
 
         mSurfaceTexture = surface;
         final Context context = this;
@@ -154,21 +156,21 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
                     }
                 }
 
-                CameraSource camera = CameraSource.getCamera(context);
+                mCamera = CameraSource.getCamera(context);
                 mSurfaceTexture.setDefaultBufferSize(width, height);
                 mOutputMult.addSurfaceTexture(mSurfaceTexture);
                 mOutputMult.confirmSize(rWidth, rHeight);
                 if (mFps != 30) {
-                    camera.setFps(mFps);
+                    mCamera.setFps(mFps);
                 }
                 if (mSensitivityTarget > 0) {
-                    camera.setSensitivity(mSensitivityTarget);
+                    mCamera.setSensitivity(mSensitivityTarget);
                 }
                 if (mFrameDurationTargetUsec > 0) {
-                    camera.setFrameDurationUsec(mFrameDurationTargetUsec);
+                    mCamera.setFrameDurationUsec(mFrameDurationTargetUsec);
                 }
                 if (mFrameExposureTimeTargetUsec > 0) {
-                    camera.setFrameExposureTimeTargetUsec(mFrameExposureTimeTargetUsec);
+                    mCamera.setFrameExposureTimeTargetUsec(mFrameExposureTimeTargetUsec);
                 }
                 while(mOutputMult.getInputSurface() == null) {
                     try {
@@ -178,7 +180,7 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
                     }
                 }
                 mSurface = mOutputMult.getInputSurface();
-                camera.registerSurface(mSurface, rWidth, rHeight);
+                mCamera.registerSurface(mSurface, rWidth, rHeight);
                 CameraSource.start();
                 FpsMeasure fpsMeasure= new FpsMeasure(30.0f, "Camera");
                 fpsMeasure.start();
@@ -214,6 +216,32 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
 
     @Override
     public void onSurfaceTextureUpdated(@NonNull SurfaceTexture surface) {
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        Log.d(TAG, "onPause");
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        Log.d(TAG, "onStop");
+        if (mSurfaceTexture != null) {
+            mSurfaceTexture.release();
+        }
+        if (mSurface != null) {
+            mSurface.release();
+        }
+        if (mCamera != null) {
+            mCamera.closeCamera();
+        }
+        if (mOutputMult != null) {
+            mOutputMult.stopAndRelease();
+        }
+
+        System.exit(0);
     }
 
     @Override
