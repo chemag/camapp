@@ -59,7 +59,7 @@ public class CameraSource {
     final static int WAIT_TIME_SHORT_MS = 3000;  // 3 sec
 
 
-    private static CameraSource me = null;
+    private static CameraSource mCameraSource = null;
     private static int mClients = 0;
     static Object lock = new Object();
     Vector<SurfaceData> mSurfaces = new Vector<>();
@@ -68,12 +68,12 @@ public class CameraSource {
 
     public static CameraSource getCamera(Context theContext) {
         synchronized (lock) {
-            if (me == null) {
-                me = new CameraSource(theContext);
+            if (mCameraSource == null) {
+                mCameraSource = new CameraSource(theContext);
             }
             mClients += 1;
         }
-        return me;
+        return mCameraSource;
     }
 
     private CameraSource(Context context) {
@@ -81,7 +81,7 @@ public class CameraSource {
     }
 
     public void closeCamera() {
-        synchronized (me) {
+        synchronized (mCameraSource) {
             mClients -= 1;
             Log.d(TAG, "Clients is: " + mClients);
 
@@ -250,7 +250,7 @@ public class CameraSource {
     }
 
     public static void start() {
-        me.openCamera();
+        mCameraSource.openCamera();
     }
 
     private boolean startCapture() {
@@ -362,14 +362,14 @@ public class CameraSource {
                 long sensorExposureTime = mFrameExposureTimeTargetUsec * 1000;  // ns
                 Log.d(TAG, "sensor_exposure_time: " + sensorExposureTime);
                 Log.d(TAG, "sensor_exposure_time_ms: " + sensorExposureTime / 1000000.0);
-                captureRequest.set(CaptureRequest.SENSOR_EXPOSURE_TIME, new Long(sensorExposureTime));
+                captureRequest.set(CaptureRequest.SENSOR_EXPOSURE_TIME, Long.valueOf(sensorExposureTime));
                 turnOffAE = true;
             }
             if (mFrameDurationTargetUsec > 0) {
                 long sensorFrameDuration = mFrameDurationTargetUsec * 1000;
                 Log.d(TAG, "sensor_frame_duration: " + sensorFrameDuration);
                 Log.d(TAG, "sensor_frame_duration_ms: " + sensorFrameDuration / 1000000.0);
-                captureRequest.set(CaptureRequest.SENSOR_FRAME_DURATION, new Long(sensorFrameDuration));
+                captureRequest.set(CaptureRequest.SENSOR_FRAME_DURATION, Long.valueOf(sensorFrameDuration));
                 turnOffAE = true;
             }
             if (mFramerateTarget > 0) {
