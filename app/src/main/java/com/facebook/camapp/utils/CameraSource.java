@@ -48,10 +48,10 @@ public class CameraSource {
     Handler mHandler;
     Vector<OutputConfiguration> mOutputConfigs;
     CameraCaptureSession mSession;
-    int mSensitivityTarget = 200;
-    int mFrameDurationTargetUsec = 30000;
-    int mFrameExposureTimeTargetUsec = 15000;
-    float mFramerateTarget = 30;
+    int mSensitivityTarget = -1;
+    int mFrameDurationTargetUsec = -1;
+    int mFrameExposureTimeTargetUsec = -1;
+    float mFramerateTarget = -1;
     boolean mHasAwbLock = true;
     boolean mAWBconverged = false;
     boolean mCameraReady = false;
