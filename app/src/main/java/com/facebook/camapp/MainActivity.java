@@ -160,7 +160,7 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
                 mSurfaceTexture.setDefaultBufferSize(width, height);
                 mOutputMult.addSurfaceTexture(mSurfaceTexture);
                 mOutputMult.confirmSize(rWidth, rHeight);
-                if (mFps != 30) {
+                if (mFps > 0) {
                     mCamera.setFps(mFps);
                 }
                 if (mSensitivityTarget > 0) {
