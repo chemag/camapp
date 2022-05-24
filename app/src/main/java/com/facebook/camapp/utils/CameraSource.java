@@ -426,7 +426,7 @@ public class CameraSource {
                             }
                         }
                         request.set(CaptureRequest.CONTROL_CAPTURE_INTENT, CameraMetadata.CONTROL_CAPTURE_INTENT_VIDEO_RECORD);
-                        Log.d(TAG, "Capture continously!");
+                        Log.d(TAG, "Capture continuously!");
                         int capture = session.setRepeatingRequest(request.build(), capRes, mHandler);
 
                     } catch (CameraAccessException e) {
