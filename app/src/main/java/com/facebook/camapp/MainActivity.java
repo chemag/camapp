@@ -6,15 +6,18 @@ import androidx.core.app.ActivityCompat;
 import android.Manifest;
 import android.app.Activity;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Matrix;
 import android.graphics.RectF;
 import android.graphics.SurfaceTexture;
+import android.hardware.camera2.CameraCharacteristics;
 import android.os.Bundle;
 import android.util.Log;
 import android.util.Size;
 import android.view.Surface;
 import android.view.TextureView;
+import android.widget.SeekBar;
 import android.widget.TextView;
 
 import com.facebook.camapp.utils.CameraSource;
@@ -24,13 +27,17 @@ import com.facebook.camapp.utils.OutputMultiplier;
 import java.util.ArrayList;
 import java.util.Formatter;
 
-public class MainActivity extends Activity implements TextureView.SurfaceTextureListener {
+public class MainActivity extends Activity implements TextureView.SurfaceTextureListener, SeekBar.OnSeekBarChangeListener {
     final static String TAG = "camapp";
 
     TextureView mTextureView;
     SurfaceTexture mSurfaceTexture;
     Surface mSurface;
     TextView mDataText;
+    float mFps = 30.0f;
+    int mSensitivityTarget = -1;
+    int mFrameDurationTargetUsec = -1;
+    int mFrameExposureTimeTargetUsec = -1;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -44,7 +51,22 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
             int REQUEST_ALL_PERMISSIONS = 0x4562;
             ActivityCompat.requestPermissions(this, permissions, REQUEST_ALL_PERMISSIONS);
         }
-
+        Intent intent = getIntent();
+        Bundle bundle = intent.getExtras();
+        if (bundle != null) {
+            if (bundle.containsKey("fps")) {
+                mFps = Float.parseFloat(bundle.getString("fps"));
+            }
+            if (bundle.containsKey("iso")) {
+                mSensitivityTarget = Integer.parseInt(bundle.getString("iso"));
+            }
+            if (bundle.containsKey("exp_usec")) {
+                mFrameExposureTimeTargetUsec = Integer.parseInt(bundle.getString("exp_usec"));
+            }
+            if (bundle.containsKey("dur_usec")) {
+                mFrameDurationTargetUsec = Integer.parseInt(bundle.getString("dur_usec"));
+            }
+        }
         final  TextureView.SurfaceTextureListener listener = this;
         Thread t = new Thread(new Runnable() {
             @Override
@@ -111,8 +133,6 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
     @Override
     public void onSurfaceTextureAvailable(@NonNull SurfaceTexture surface, int width, int height) {
         Log.d(TAG, "onSurfaceTextureAvailable w,h = " + width + ", " + height);
-        //mTextureView.setRotation(-90);
-        int tmp = width;
         Size previewSize = new Size(width, height);
         configureTextureViewTransform(previewSize, width, height);
         final int rHeight = height;
@@ -135,8 +155,21 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
                 }
 
                 CameraSource camera = CameraSource.getCamera(context);
+                mSurfaceTexture.setDefaultBufferSize(width, height);
                 mOutputMult.addSurfaceTexture(mSurfaceTexture);
                 mOutputMult.confirmSize(rWidth, rHeight);
+                if (mFps != 30) {
+                    camera.setFps(mFps);
+                }
+                if (mSensitivityTarget > 0) {
+                    camera.setSensitivity(mSensitivityTarget);
+                }
+                if (mFrameDurationTargetUsec > 0) {
+                    camera.setFrameDurationUsec(mFrameDurationTargetUsec);
+                }
+                if (mFrameExposureTimeTargetUsec > 0) {
+                    camera.setFrameExposureTimeTargetUsec(mFrameExposureTimeTargetUsec);
+                }
                 while(mOutputMult.getInputSurface() == null) {
                     try {
                         Thread.sleep(50);
@@ -146,7 +179,7 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
                 }
                 mSurface = mOutputMult.getInputSurface();
                 camera.registerSurface(mSurface, rWidth, rHeight);
-                camera.start();
+                CameraSource.start();
                 FpsMeasure fpsMeasure= new FpsMeasure(30.0f, "Camera");
                 fpsMeasure.start();
                 while(true) {
@@ -155,7 +188,8 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
                     runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
-                            String text = 
+
+                            String text =
                                     (new Formatter()).format("Camera rate: %.1f fps (1 sec average: %.1f fps)",
                                         fpsMeasure.getFps(), fpsMeasure.getAverageFps()).toString();
                             mDataText.setText(text);
@@ -169,14 +203,31 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
 
     @Override
     public void onSurfaceTextureSizeChanged(@NonNull SurfaceTexture surface, int width, int height) {
+        Log.d(TAG, "onSurfaceTextureSizeChanged");
     }
 
     @Override
     public boolean onSurfaceTextureDestroyed(@NonNull SurfaceTexture surface) {
+        Log.d(TAG, "onSurfaceTextureDestroyed");
         return false;
     }
 
     @Override
     public void onSurfaceTextureUpdated(@NonNull SurfaceTexture surface) {
+    }
+
+    @Override
+    public void onProgressChanged(SeekBar seekBar, int i, boolean b) {
+
+    }
+
+    @Override
+    public void onStartTrackingTouch(SeekBar seekBar) {
+
+    }
+
+    @Override
+    public void onStopTrackingTouch(SeekBar seekBar) {
+
     }
 }
