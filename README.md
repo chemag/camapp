@@ -83,3 +83,8 @@ Events injected: 1
 ## Network stats: elapsed time=107ms (0ms mobile, 0ms wifi, 107ms not connected)
 // Monkey finished
 ```
+
+
+# 3. License
+
+camapp is BSD licensed, as found in the [LICENSE](LICENSE) file.
