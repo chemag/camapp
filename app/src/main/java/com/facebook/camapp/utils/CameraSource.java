@@ -6,8 +6,6 @@ import android.content.pm.PackageManager;
 import android.graphics.SurfaceTexture;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCaptureSession;
-import android.hardware.camera2.CameraCaptureSession.CaptureCallback;
-import android.hardware.camera2.CameraCaptureSession.StateCallback;
 import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
@@ -28,14 +26,12 @@ import android.util.Log;
 import android.util.Range;
 import android.util.Size;
 import android.view.Surface;
-
+import androidx.annotation.NonNull;
+import androidx.core.app.ActivityCompat;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Vector;
 import java.util.concurrent.Executor;
-
-import androidx.annotation.NonNull;
-import androidx.core.app.ActivityCompat;
 
 import static android.content.Context.CAMERA_SERVICE;
 
@@ -121,7 +117,6 @@ public class CameraSource {
                 Iterator<CameraCharacteristics.Key<?>> iter = keys.iterator();
                 while (iter.hasNext()) {
                     CameraCharacteristics.Key<?> key = iter.next();
-
                     Object obj = chars.get(key);
                     if (obj instanceof Range[] ) {
                         Log.d(TAG, "Key: " + key.getName());
@@ -130,15 +125,16 @@ public class CameraSource {
                         }
                     } else if (obj instanceof MandatoryStreamCombination[]) {
                         Log.d(TAG, key.getName());
-                        for (MandatoryStreamCombination comb: (MandatoryStreamCombination[])obj) {
-                            Log.d(TAG, "descr: " + comb.getDescription());
+                        if (Build.VERSION.SDK_INT >= 29) {
+                            for (MandatoryStreamCombination comb: (MandatoryStreamCombination[])obj) {
+                                Log.d(TAG, "descr: " + comb.getDescription());
+                            }
                         }
                     }
                     else {
                         Log.d(TAG, key.getName() + " - "  + chars.get(key));
 
                     }
-
                 }
             }
 
@@ -154,60 +150,55 @@ public class CameraSource {
                     CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
 
             int[] formats = streamConfigurationMap.getOutputFormats();
-            for (int format:formats) {
+            for (int format : formats) {
                 Log.d(TAG, "Pixel format: " + format);
                 Size[] previewSizes = streamConfigurationMap.getOutputSizes(format);
-                for (Size previewSize:previewSizes) {
+                for (Size previewSize : previewSizes) {
                     Log.d(TAG, "Preview size for the format: " + previewSize);
                 }
             }
             Size[] previewSizes = streamConfigurationMap.getOutputSizes(SurfaceTexture.class);
-            for (Size previewSize:previewSizes) {
+            for (Size previewSize : previewSizes) {
                 Log.d(TAG, "Preview size for surface class: " + previewSize);
             }
 
-            int [] inputFormats = streamConfigurationMap.getInputFormats();
-            for (int format:inputFormats) {
+            int[] inputFormats = streamConfigurationMap.getInputFormats();
+            for (int format : inputFormats) {
                 Log.d(TAG, "Input format: " + format);
                 Size[] inputsizes = streamConfigurationMap.getInputSizes(format);
-                for (Size size: inputsizes) {
+                for (Size size : inputsizes) {
                     Log.d(TAG, format + " - " + size);
                 }
             }
-
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 RecommendedStreamConfigurationMap recomended = characs.getRecommendedStreamConfigurationMap(RecommendedStreamConfigurationMap.USECASE_PREVIEW);
             }
 
             Range<Integer>[] fpsRanges = characs.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES);
-            Log.d(TAG, "_____\n");
             if (fpsRanges != null) {
-                Log.d(TAG, "fps ranges: " + fpsRanges.length);
-                for (Range range : fpsRanges) {
-                    Log.d(TAG, range.getLower() + " -> " + range.getUpper());
+                for (Range range: fpsRanges) {
+                    Log.d(TAG, "fps range: " + range.getLower() + " -> " + range.getUpper());
                 }
             } else {
                 Log.d(TAG, "no fps ranges");
             }
-            Log.d(TAG, "_____\n");
+
             Range<Integer> sensorRange = characs.get(CameraCharacteristics.SENSOR_INFO_SENSITIVITY_RANGE);
             if (sensorRange != null)
                 Log.d(TAG, "Sensor range: " + sensorRange.getLower() + " -> " + sensorRange.getUpper());
             else
                 Log.d(TAG, "No sensor range");
 
-            Log.d(TAG, "_____\n");
             Range<Long> exposureRange = characs.get(CameraCharacteristics.SENSOR_INFO_EXPOSURE_TIME_RANGE);
             if (exposureRange != null)
                 Log.d(TAG, "Exposure range: " + exposureRange.getLower() + " -> " + exposureRange.getUpper());
             else
                 Log.d(TAG, "No exposure range");
-            Log.d(TAG, "_____\n");
+
             Long maxDuration = characs.get(CameraCharacteristics.SENSOR_INFO_MAX_FRAME_DURATION);
             Log.d(TAG, "Max frame duration: " + maxDuration);
 
-            Log.d(TAG, "_____\n");
             int[] facedetectionModes= characs.get(CameraCharacteristics.STATISTICS_INFO_AVAILABLE_FACE_DETECT_MODES);
             if (facedetectionModes != null) {
                 Log.d(TAG, "facedetectionModes: " + facedetectionModes.length);
@@ -234,11 +225,10 @@ public class CameraSource {
                     mHandler);
 
             int orientation = characs.get(CameraCharacteristics.SENSOR_ORIENTATION);
-            Log.d(TAG,"Sensor orientation: " + orientation);
+            Log.d(TAG, "Sensor orientation: " + orientation);
 
             mHwLevel = characs.get(CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL);
             Log.d(TAG, "Hw level: " + hwLevelToText(mHwLevel));
-            Log.d(TAG, "_____\n");
         } catch (CameraAccessException cameraAccessException) {
             cameraAccessException.printStackTrace();
         }
@@ -258,7 +248,7 @@ public class CameraSource {
             mOutputConfigs = new Vector<>();
 
 
-            for (SurfaceData data: mSurfaces) {
+            for (SurfaceData data : mSurfaces) {
                 Log.d(TAG, "Add config surface: " + data.mSurface + ", " + data.mHeight);
                 OutputConfiguration outconfig = new OutputConfiguration(data.mSurface);
                 mOutputConfigs.add(outconfig);
@@ -271,6 +261,7 @@ public class CameraSource {
             mCameraDevice.createCaptureSession(config);
         } catch (CameraAccessException e) {
             e.printStackTrace();
+            return false;
         }
         return true;
     }
@@ -287,24 +278,25 @@ public class CameraSource {
             e.printStackTrace();
         }
     }
+
     class StateHolder extends CameraDevice.StateCallback {
 
         @Override
         public void onOpened(@NonNull CameraDevice camera) {
-            Log.d(TAG, "Camera opened: "+camera.getId());
+            Log.d(TAG, "Camera opened: " + camera.getId());
             mCameraDevice = camera;
             startCapture();
         }
 
         @Override
         public void onDisconnected(@NonNull CameraDevice camera) {
-            Log.d(TAG, "Camera disconnected: "+camera.getId());
+            Log.d(TAG, "Camera disconnected: " + camera.getId());
             mCameraDevice = null;
         }
 
         @Override
         public void onError(@NonNull CameraDevice camera, int error) {
-            Log.d(TAG, "Camera error: "+camera.getId() + ", Error: " + error);
+            Log.d(TAG, "Camera error: " + camera.getId() + ", Error: " + error);
         }
     }
 
@@ -313,16 +305,16 @@ public class CameraSource {
 
         @Override
         public void execute(Runnable command) {
-         //   Log.d(TAG, "Exec: " + command);
+            //   Log.d(TAG, "Exec: " + command);
             command.run();
         }
     }
 
 
-    public Range<Integer> getRange(float target, Range<Integer>[] ranges){
+    public Range<Integer> getRange(float target, Range<Integer>[] ranges) {
         Range<Integer> range = null;
         if (ranges != null) {
-            for (Range<Integer> r:ranges){
+            for (Range<Integer> r : ranges) {
                 if (target == r.getLower() && target == r.getUpper()) {
                     return r;
                 } else if (target >= r.getLower() && target <= r.getUpper()) {
@@ -346,7 +338,8 @@ public class CameraSource {
     }
 
     Object mRequestLock = new Object();
-    class CamState extends StateCallback {
+
+    class CamState extends CameraCaptureSession.StateCallback {
         public CamState() {
             super();
         }
@@ -411,7 +404,7 @@ public class CameraSource {
                                 Log.d(TAG, "Lock awb");
                                 awbLockTriggered = true;
                                 captureRequest.set(CaptureRequest.CONTROL_AWB_LOCK, true);
-                            } else if(!aeTriggered){
+                            } else if (!aeTriggered) {
                                 aeTriggered = true;
                                 captureRequest.set(CaptureRequest.CONTROL_AE_PRECAPTURE_TRIGGER, CaptureRequest.CONTROL_AE_PRECAPTURE_TRIGGER_START);
                             }
@@ -486,7 +479,7 @@ public class CameraSource {
 
     }
 
-    class CapResult extends CaptureCallback {
+    class CapResult extends CameraCaptureSession.CaptureCallback {
         @Override
         public void onCaptureStarted(@NonNull CameraCaptureSession session, @NonNull CaptureRequest captureRequest, long timestamp, long frameNumber) {
             super.onCaptureStarted(session, captureRequest, timestamp, frameNumber);
@@ -522,11 +515,11 @@ public class CameraSource {
         @Override
         public void onCaptureFailed(@NonNull CameraCaptureSession session, @NonNull CaptureRequest captureRequest, @NonNull CaptureFailure failure) {
             super.onCaptureFailed(session, captureRequest, failure);
-            Log.d(TAG, "onCaptureFailed");
+            Log.d(TAG, "onCaptureFailed, reason:" + failure.getReason() + ", " + failure.toString());
         }
     }
 
-    String hwLevelToText( int deviceLevel) {
+    String hwLevelToText(int deviceLevel) {
 
         switch (deviceLevel) {
             case CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_LEGACY:
@@ -548,6 +541,7 @@ public class CameraSource {
                 return "Whoops, what is this?";
         }
     }
+
     // Returns true if the device supports the required hardware level, or better.
     boolean isHardwareLevelSupported(CameraCharacteristics c, int requiredLevel) {
         final int[] sortedHwLevels = {
@@ -587,23 +581,22 @@ public class CameraSource {
     }
 
     public void setFps(float fps) {
-        mManualSettings= true;
+        mManualSettings = true;
         mFramerateTarget = fps;
     }
 
     public void setFrameDurationUsec(int usec) {
-        mManualSettings= true;
+        mManualSettings = true;
         mFrameDurationTargetUsec = usec;
     }
 
     public void setFrameExposureTimeTargetUsec(int usec) {
-        mManualSettings= true;
+        mManualSettings = true;
         mFrameExposureTimeTargetUsec = usec;
     }
 
     public void setSensitivity(int iso) {
-        mManualSettings= true;
+        mManualSettings = true;
         mSensitivityTarget = iso;
     }
-
 }
