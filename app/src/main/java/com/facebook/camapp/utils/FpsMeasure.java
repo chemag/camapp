@@ -55,7 +55,7 @@ public class FpsMeasure extends Thread{
                 float old = mHistory.remove(0);
                 mCurrentHistorySum -= old;
             }
-            mHistory.add(new Float(mFps));
+            mHistory.add((float)mFps);
             mCurrentHistorySum += mFps;
             double fpsDiff = mFps - lastFps;
             if (Math.abs(fpsDiff) < STABLE_LIMIT) {
