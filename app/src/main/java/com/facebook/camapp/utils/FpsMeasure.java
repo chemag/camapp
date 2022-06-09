@@ -5,7 +5,7 @@ import android.util.Log;
 
 import java.util.Vector;
 
-public class FpsMeasure extends Thread{
+public class FpsMeasure extends Thread {
     private final String TAG = "camapp.fps";
     double mFps = 0;
     long[] mLatestPts;
@@ -35,7 +35,7 @@ public class FpsMeasure extends Thread{
         mHistoryLength = mLatestPts.length;
         double lastFps = 0;
         int stableCount = 0;
-        while(true) {
+        while (true) {
             synchronized (mLock) {
                 try {
                     mLock.wait();
@@ -45,12 +45,12 @@ public class FpsMeasure extends Thread{
             }
             int index = mPtsIndex;
             // points at the oldest value
-            long s1 = mLatestPts[(index + 1)%mLatestPts.length];
+            long s1 = mLatestPts[(index + 1) % mLatestPts.length];
             // current value
-            long s2 =  mLatestPts[index];
-            double diff = (double)(s2 - s1)/1000000.0;
+            long s2 = mLatestPts[index];
+            double diff = (double)(s2 - s1) / 1000000.0;
 
-            mFps = mTargetFps/diff;
+            mFps = mTargetFps / diff;
             if (mHistory.size() == mHistoryLength) {
                 float old = mHistory.remove(0);
                 mCurrentHistorySum -= old;
@@ -96,6 +96,6 @@ public class FpsMeasure extends Thread{
     }
 
     public float getAverageFps() {
-        return mCurrentHistorySum/mHistory.size();
+        return mCurrentHistorySum / mHistory.size();
     }
 }
