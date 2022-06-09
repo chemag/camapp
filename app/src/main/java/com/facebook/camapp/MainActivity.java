@@ -191,7 +191,7 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
                         public void run() {
 
                             String text =
-                                    (new Formatter()).format("Camera rate: %.1f fps (1 sec average: %.1f fps)",
+                                    (new Formatter()).format("Camera rate: %.2f fps (1 sec average: %.2f fps)",
                                         fpsMeasure.getFps(), fpsMeasure.getAverageFps()).toString();
                             mDataText.setText(text);
                         }
