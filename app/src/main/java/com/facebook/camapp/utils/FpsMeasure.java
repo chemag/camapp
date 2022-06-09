@@ -12,8 +12,8 @@ public class FpsMeasure extends Thread {
     boolean mStable = false;
     float mTargetFps = 0;
     int mPtsIndex = 0;
-    int STABLE_PERIOD_LIMIT = 6; // When we have four periods of stable fps
-    long SLEEP_PERIOD_MS = 1000; //every half second
+    int STABLE_PERIOD_LIMIT = 4; // When we have four periods of stable fps
+    long SLEEP_PERIOD_MS = 500; //every half second
     float STABLE_LIMIT = 2f; // +/-  fps
     String mId = "";
     boolean continuous = true;
@@ -48,8 +48,10 @@ public class FpsMeasure extends Thread {
             long s1 = mLatestPts[(index + 1) % mLatestPts.length];
             // current value
             long s2 = mLatestPts[index];
-            double diff = (double)(s2 - s1) / 1000000.0;
-
+            if (s1 == 0) {
+                continue;
+            }
+            double diff = (double)(s2 - s1) / 1000000000.0; // to sec
             mFps = mTargetFps / diff;
             if (mHistory.size() == mHistoryLength) {
                 float old = mHistory.remove(0);
@@ -58,7 +60,7 @@ public class FpsMeasure extends Thread {
             mHistory.add((float)mFps);
             mCurrentHistorySum += mFps;
             double fpsDiff = mFps - lastFps;
-            if (Math.abs(fpsDiff) < STABLE_LIMIT) {
+            if (Math.abs(fpsDiff) < STABLE_LIMIT && (mHistory.size() == mHistoryLength)) {
                 stableCount++;
             } else {
                 stableCount = 0;
@@ -77,13 +79,13 @@ public class FpsMeasure extends Thread {
     }
 
     public void addPtsUsec(long ptsU) {
-        addPtsNsec(ptsU / 1000);
+        addPtsNsec(ptsU * 1000);
     }
 
-    public void addPtsNsec(long ptsU) {
+    public void addPtsNsec(long ptsN) {
         synchronized (mLock) {
             mPtsIndex = (mPtsIndex + 1) % mLatestPts.length;
-            mLatestPts[mPtsIndex] = ptsU / 1000;
+            mLatestPts[mPtsIndex] = ptsN;
             mLock.notifyAll();
         }
     }
@@ -91,6 +93,7 @@ public class FpsMeasure extends Thread {
     public boolean isStable() {
         return mStable;
     }
+
     public double getFps() {
         return mFps;
     }
